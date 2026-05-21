@@ -12,6 +12,9 @@ jobs:
   lint:
     uses: ./.github/workflows/lint.yml
 
+  fli-js:
+    uses: ./.github/workflows/fli-js.yml
+
   railway-build:
     name: Railway build validation
     runs-on: ubuntu-latest
