@@ -330,6 +330,55 @@ describe("FlightSearchFilters.format() snapshots (parity with Python)", () => {
     expect(out[3]).toBe(0);
   });
 
+  test("selected_flight encodes the leg's local departure date (not UTC-shifted)", () => {
+    // Regression guard: parseDateTime in decoders.ts builds Date via the
+    // local-time constructor; formatting back with UTC getters would
+    // shift the date by ±1 day for any non-UTC caller.
+    //
+    // Construct a FlightResult with a known local date+time that's
+    // close to local midnight (8pm) — UTC-aware getters would roll
+    // forward to the next day for any western-hemisphere TZ.
+    const TD_FUTURE = travelDate(60);
+    const localDepart = new Date(2026, 11, 15, 20, 0); // Dec 15 8pm local
+    const filters = new FlightSearchFilters({
+      trip_type: TripType.ROUND_TRIP,
+      passenger_info: { adults: 1, children: 0, infants_in_seat: 0, infants_on_lap: 0 },
+      flight_segments: [
+        new FlightSegment({
+          departure_airport: [[[Airport.JFK, 0]]],
+          arrival_airport: [[[Airport.LAX, 0]]],
+          travel_date: TD_FUTURE,
+          selected_flight: {
+            legs: [
+              {
+                airline: Airline.AA,
+                flight_number: "100",
+                departure_airport: Airport.JFK,
+                arrival_airport: Airport.LAX,
+                departure_datetime: localDepart,
+                arrival_datetime: new Date(2026, 11, 15, 23, 30),
+                duration: 210,
+              },
+            ],
+            price: 250,
+            currency: "USD",
+            duration: 210,
+            stops: 0,
+          },
+        }),
+        new FlightSegment({
+          departure_airport: [[[Airport.LAX, 0]]],
+          arrival_airport: [[[Airport.JFK, 0]]],
+          travel_date: travelDate(67),
+        }),
+      ],
+    });
+    const out = filters.format() as unknown[];
+    const seg = ((out[1] as unknown[])[13] as unknown[][])[0] as unknown[];
+    const selectedFlights = seg[8] as unknown[][];
+    expect(selectedFlights[0]?.[1]).toBe("2026-12-15");
+  });
+
   test("Test 8: alliance filter (STAR_ALLIANCE via Airline enum)", () => {
     const filters = new FlightSearchFilters({
       passenger_info: { adults: 1, children: 0, infants_in_seat: 0, infants_on_lap: 0 },

@@ -113,7 +113,14 @@ export function buildBookingToken(args: {
   return base64Encode(payload);
 }
 
-/** Varint reader; returns `[value, newOffset]`. */
+/** Varint reader; returns `[value, newOffset]`.
+ *
+ * Uses `+= chunk * 2**shift` instead of `|= chunk << shift` because
+ * JavaScript's bitwise operators coerce to signed 32-bit integers, so
+ * `<<` past bit 30 corrupts the result. Numbers stay accurate up to
+ * `Number.MAX_SAFE_INTEGER` (2^53 − 1), which is plenty for prices and
+ * field tags but stops short of the full protobuf 64-bit varint range.
+ */
 export function _readVarint(buf: Uint8Array, off: number): [number, number] {
   let value = 0;
   let shift = 0;
@@ -122,9 +129,15 @@ export function _readVarint(buf: Uint8Array, off: number): [number, number] {
     const byte = buf[offset];
     if (byte === undefined) throw new RangeError(`Truncated varint at offset ${offset}`);
     offset++;
-    value |= (byte & 0x7f) << shift;
-    if ((byte & 0x80) === 0) return [value, offset];
+    value += (byte & 0x7f) * 2 ** shift;
+    if ((byte & 0x80) === 0) {
+      if (!Number.isSafeInteger(value)) {
+        throw new Error("Varint exceeds Number.MAX_SAFE_INTEGER");
+      }
+      return [value, offset];
+    }
     shift += 7;
+    if (shift >= 64) throw new Error("Varint is too large to decode");
   }
 }
 

@@ -204,6 +204,21 @@ describe("_readVarint", () => {
   test("truncated varint raises", () => {
     expect(() => _readVarint(new Uint8Array([0x80]), 0)).toThrow();
   });
+
+  test("decodes values ≥ 2^31 without sign-bit corruption", () => {
+    // Naive `|= <<` decoders break here: shift=28 yields a 5th byte whose
+    // top bits land at bit 31+, which JavaScript's signed-32 bitwise ops
+    // would render as a negative number.
+    const cases: Array<[number, Uint8Array]> = [
+      [2 ** 31, new Uint8Array([0x80, 0x80, 0x80, 0x80, 0x08])],
+      [2 ** 32, new Uint8Array([0x80, 0x80, 0x80, 0x80, 0x10])],
+      [2 ** 40, new Uint8Array([0x80, 0x80, 0x80, 0x80, 0x80, 0x20])],
+    ];
+    for (const [expected, bytes] of cases) {
+      const [decoded] = _readVarint(bytes, 0);
+      expect(decoded).toBe(expected);
+    }
+  });
 });
 
 // Live `tfu` URL parameter captured 2026-05-14 from a JFK→LAX RT booking page.

@@ -10,6 +10,9 @@ const _decodeCache = new Map<string, string | null>();
 const MAX_CACHE = 256;
 
 function readVarint(data: Uint8Array, offset: number): [number, number] {
+  // `+= chunk * 2**shift` instead of `|= chunk << shift` — JavaScript's
+  // bitwise operators coerce to signed 32-bit and would corrupt the
+  // result for shifts ≥ 31 (i.e. varint values ≥ 2^31).
   let value = 0;
   let shift = 0;
   let off = offset;
@@ -17,8 +20,13 @@ function readVarint(data: Uint8Array, offset: number): [number, number] {
     const byte = data[off];
     if (byte === undefined) break;
     off += 1;
-    value |= (byte & 0x7f) << shift;
-    if ((byte & 0x80) === 0) return [value, off];
+    value += (byte & 0x7f) * 2 ** shift;
+    if ((byte & 0x80) === 0) {
+      if (!Number.isSafeInteger(value)) {
+        throw new Error("Varint exceeds Number.MAX_SAFE_INTEGER");
+      }
+      return [value, off];
+    }
     shift += 7;
     if (shift >= 64) throw new Error("Varint is too large to decode");
   }

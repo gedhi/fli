@@ -225,9 +225,19 @@ export class Client {
 
 let _sharedClient: Client | null = null;
 
-/** Return the process-wide shared client (lazy, double-checked). */
+/**
+ * Return the process-wide shared client.
+ *
+ * Lazy on the first call. If `options` is passed on a later call, the
+ * existing singleton is replaced with a new instance configured against
+ * those options (and that new instance becomes the cached singleton for
+ * subsequent no-arg callers). Callers that want a fully isolated client
+ * — e.g. to use a different proxy in one place without affecting
+ * others — should construct `new Client(options)` directly and pass it
+ * to `SearchFlights` / `SearchDates`.
+ */
 export function getClient(options?: ClientOptions): Client {
-  if (_sharedClient == null) {
+  if (_sharedClient == null || options != null) {
     _sharedClient = new Client(options);
   }
   return _sharedClient;

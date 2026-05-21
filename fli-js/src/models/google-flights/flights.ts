@@ -262,8 +262,14 @@ export class FlightSearchFilters {
 }
 
 function formatDateOnly(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
+  // Use local-time getters: `parseDateTime` in decoders.ts constructs
+  // `Date` via the local-time `new Date(y, m-1, d, h, min)` form, so the
+  // local components are what represent the flight's actual departure
+  // date. Reading back with `getUTC*` would shift the date by ±1 day for
+  // any caller not in UTC, sending the wrong day to Google's return-leg
+  // lookup.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
